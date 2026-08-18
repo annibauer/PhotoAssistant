@@ -1,0 +1,2 @@
+[console_scripts]
+photo-assistant = photo_assistant.cli:main

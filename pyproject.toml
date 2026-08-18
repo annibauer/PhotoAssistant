@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "photo-assistant"
+version = "0.1.0"
+description = "Photo dedupe and same-scene assistant"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "Pillow>=10.0.0",
+  "imagehash>=4.3.1",
+  "numpy>=1.26.0",
+  "pandas>=2.2.0",
+  "scikit-learn>=1.5.0",
+  "sentence-transformers>=3.0.0",
+  "streamlit>=1.37.0",
+  "tqdm>=4.66.0"
+]
+
+[project.scripts]
+photo-assistant = "photo_assistant.cli:main"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

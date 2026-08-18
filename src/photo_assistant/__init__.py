@@ -1,0 +1,1 @@
+"""Photo Assistant package."""
