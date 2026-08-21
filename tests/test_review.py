@@ -11,6 +11,7 @@ from photo_assistant.review import (
     build_scene_table,
     export_analysis,
     move_discards_to_folder,
+    move_keeps_to_folder,
 )
 
 
@@ -44,6 +45,20 @@ def test_build_decision_table_labels_keep_and_discard() -> None:
     assert by_path["/x/b.jpg"] == "keep"
     assert by_path["/x/a.jpg"] == "discard"
     assert by_path["/x/c.jpg"] == "discard"
+
+
+def test_build_decision_table_allows_multiple_keeps() -> None:
+    members = {
+        "g1": ["/x/a.jpg", "/x/b.jpg", "/x/c.jpg"],
+    }
+    choices = {"g1": ["/x/a.jpg", "/x/c.jpg"]}
+
+    decision_df = build_decision_table(choices, members)
+    by_path = {row["photo_path"]: row["decision"] for _, row in decision_df.iterrows()}
+
+    assert by_path["/x/a.jpg"] == "keep"
+    assert by_path["/x/b.jpg"] == "discard"
+    assert by_path["/x/c.jpg"] == "keep"
 
 
 def test_export_analysis_writes_csvs(tmp_path: Path) -> None:
@@ -85,3 +100,33 @@ def test_move_discards_to_folder_moves_only_discard_rows(tmp_path: Path) -> None
     moved_to = Path(str(moved_df.iloc[0]["moved_to"]))
     assert moved_to.exists()
     assert moved_to.parent == target_dir
+
+
+def test_move_keeps_to_folder_moves_only_keep_rows(tmp_path: Path) -> None:
+    keep_file = tmp_path / "keep.jpg"
+    discard_file = tmp_path / "discard.jpg"
+    keep_file.write_bytes(b"keep")
+    discard_file.write_bytes(b"discard")
+
+    decision_df = pd.DataFrame(
+        [
+            {"group_id": "g1", "photo_path": str(keep_file), "decision": "keep", "kept_path": str(keep_file)},
+            {
+                "group_id": "g1",
+                "photo_path": str(discard_file),
+                "decision": "discard",
+                "kept_path": str(keep_file),
+            },
+        ]
+    )
+
+    target_dir = tmp_path / "kept"
+    moved_df = move_keeps_to_folder(decision_df, target_dir)
+
+    assert len(moved_df) == 1
+    assert not keep_file.exists()
+    assert discard_file.exists()
+    moved_to = Path(str(moved_df.iloc[0]["moved_to"]))
+    assert moved_to.exists()
+    assert moved_to.parent == target_dir
+    assert moved_df.iloc[0]["decision"] == "keep"

@@ -5,7 +5,6 @@ from datetime import timedelta
 
 import numpy as np
 from PIL import Image
-from sentence_transformers import SentenceTransformer
 from sklearn.neighbors import NearestNeighbors
 
 from .hash_pipeline import hamming_distance
@@ -14,23 +13,36 @@ from .models import PhotoAsset, SceneGroup
 
 def generate_embeddings(
     assets: list[PhotoAsset],
-    model_name: str = "clip-ViT-B-32",
-    batch_size: int = 16,
+    thumb_size: int = 64,
 ) -> np.ndarray:
-    model = SentenceTransformer(model_name)
-    images = [Image.open(asset.path).convert("RGB") for asset in assets]
-    embeddings = model.encode(
-        images,
-        convert_to_numpy=True,
-        batch_size=batch_size,
-        show_progress_bar=True,
-        normalize_embeddings=True,
-    )
-    for image in images:
-        image.close()
-    for asset, vec in zip(assets, embeddings):
-        asset.embedding = vec.tolist()
-    return embeddings
+    embeddings: list[np.ndarray] = []
+
+    for asset in assets:
+        with Image.open(asset.path) as image:
+            rgb = image.convert("RGB")
+            rgb.thumbnail((thumb_size, thumb_size))
+
+            arr = np.asarray(rgb, dtype=np.float32) / 255.0
+
+            # Combine low-resolution grayscale signal with simple color statistics.
+            gray = arr.mean(axis=2)
+            gray_small = Image.fromarray((gray * 255).astype(np.uint8)).resize((16, 16), Image.BILINEAR)
+            gray_vec = np.asarray(gray_small, dtype=np.float32).reshape(-1) / 255.0
+
+            channel_mean = arr.mean(axis=(0, 1))
+            channel_std = arr.std(axis=(0, 1))
+            feat = np.concatenate([gray_vec, channel_mean, channel_std]).astype(np.float32)
+
+            norm = np.linalg.norm(feat)
+            if norm > 0:
+                feat = feat / norm
+
+            embeddings.append(feat)
+
+    if not embeddings:
+        return np.zeros((0, 262), dtype=np.float32)
+
+    return np.vstack(embeddings)
 
 
 class _UnionFind:

@@ -36,16 +36,24 @@ def build_scene_table(scene_groups: list[SceneGroup]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def build_decision_table(choices: dict[str, str], group_members: dict[str, list[str]]) -> pd.DataFrame:
+def build_decision_table(choices: dict[str, str | list[str]], group_members: dict[str, list[str]]) -> pd.DataFrame:
     rows: list[dict[str, str]] = []
-    for group_id, keep_path in choices.items():
+    for group_id, keep_value in choices.items():
+        if isinstance(keep_value, str):
+            keep_paths = [keep_value]
+        else:
+            keep_paths = [str(path) for path in keep_value]
+
+        keep_set = set(keep_paths)
+        kept_path_value = "|".join(keep_paths)
+
         for member_path in group_members.get(group_id, []):
             rows.append(
                 {
                     "group_id": group_id,
                     "photo_path": member_path,
-                    "decision": "keep" if member_path == keep_path else "discard",
-                    "kept_path": keep_path,
+                    "decision": "keep" if member_path in keep_set else "discard",
+                    "kept_path": kept_path_value,
                 }
             )
     return pd.DataFrame(rows)
@@ -64,12 +72,12 @@ def export_analysis(
         decision_table.to_csv(out_dir / "review_decisions.csv", index=False)
 
 
-def move_discards_to_folder(decision_table: pd.DataFrame, target_dir: Path) -> pd.DataFrame:
+def _move_decision_rows_to_folder(decision_table: pd.DataFrame, target_dir: Path, decision_value: str) -> pd.DataFrame:
     target_dir.mkdir(parents=True, exist_ok=True)
     moved_rows: list[dict[str, str]] = []
 
-    discard_rows = decision_table[decision_table["decision"] == "discard"]
-    for _, row in discard_rows.iterrows():
+    selected_rows = decision_table[decision_table["decision"] == decision_value]
+    for _, row in selected_rows.iterrows():
         source = Path(str(row["photo_path"]))
         if not source.exists():
             continue
@@ -89,7 +97,16 @@ def move_discards_to_folder(decision_table: pd.DataFrame, target_dir: Path) -> p
                 "group_id": str(row["group_id"]),
                 "original_path": str(source),
                 "moved_to": str(destination),
+                "decision": decision_value,
             }
         )
 
     return pd.DataFrame(moved_rows)
+
+
+def move_discards_to_folder(decision_table: pd.DataFrame, target_dir: Path) -> pd.DataFrame:
+    return _move_decision_rows_to_folder(decision_table, target_dir, "discard")
+
+
+def move_keeps_to_folder(decision_table: pd.DataFrame, target_dir: Path) -> pd.DataFrame:
+    return _move_decision_rows_to_folder(decision_table, target_dir, "keep")

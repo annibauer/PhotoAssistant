@@ -33,6 +33,8 @@ def main() -> None:
         scene_groups = find_scene_groups(remaining_assets, embeddings, similarity_threshold=args.scene_threshold)
     else:
         scene_groups = []
+        
+    scene_groups = []
 
     duplicate_table = build_group_table(exact_groups, near_groups)
     scene_table = build_scene_table(scene_groups)
